@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Daily Expense Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #000000; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .card-dark { background-color: #161821; }
+    .card-darker { background-color: #1c1f2b; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: #000000; }
+    ::-webkit-scrollbar-thumb { background: #2d3142; border-radius: 2px; }
+  </style>
+</head>
+<body class="min-h-screen flex justify-center bg-black">
+
+  <div class="w-full max-w-md min-h-screen bg-black flex flex-col relative pb-24 p-4">
+    
+    <!-- Top Bar -->
+    <div class="flex justify-between items-center py-2 mb-4">
+      <div>
+        <h1 class="text-xl font-semibold text-white tracking-wide">Expense Tracker</h1>
+        <p id="syncStatus" class="text-[11px] text-slate-400">Syncing with Google Sheets...</p>
+      </div>
+      <button onclick="fetchAllExpenses()" class="px-3 py-1.5 rounded-xl card-dark border border-slate-800 text-xs text-slate-300 hover:text-white transition">🔄 Sync</button>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="card-dark rounded-2xl p-4 border border-slate-800/80 mb-5 shadow-lg">
+      <div class="flex justify-between items-center mb-2">
+        <span class="text-xs text-slate-400 uppercase tracking-wider font-medium">Total Expenses</span>
+        <span class="w-7 h-7 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center text-xs font-bold">₹</span>
+      </div>
+      <p id="totalExpenseAmount" class="text-2xl font-bold text-rose-500">₹0.00</p>
+    </div>
+
+    <!-- Filter & Header Row -->
+    <div class="flex justify-between items-center mb-3">
+      <h2 class="text-sm font-semibold text-white">Transactions</h2>
+      <select id="filterCategory" onchange="renderExpenses()" class="card-dark text-xs text-slate-300 border border-slate-800 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-blue-500">
+        <option value="ALL">All Categories</option>
+        <option value="Food & Dining">Food & Dining</option>
+        <option value="Groceries">Groceries</option>
+        <option value="Transport">Transport</option>
+        <option value="Bills & Utilities">Bills & Utilities</option>
+        <option value="Shopping">Shopping</option>
+        <option value="Others">Others</option>
+      </select>
+    </div>
+
+    <!-- Transaction List Container -->
+    <div id="txList" class="space-y-2.5 flex-1 overflow-y-auto">
+      <div class="p-8 text-center text-slate-500 text-sm animate-pulse">Loading sheet records...</div>
+    </div>
+
+    <!-- Bottom Floating Action Button (+ Add Expense) -->
+    <div class="fixed bottom-6 left-0 right-0 max-w-md mx-auto px-6 flex justify-end pointer-events-none z-20">
+      <button onclick="openModal()" class="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center shadow-xl pointer-events-auto transition transform active:scale-95">
+        <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- ADD / EDIT EXPENSE MODAL -->
+    <div id="expenseModal" class="fixed inset-0 max-w-md mx-auto bg-black/80 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+      <div class="card-dark w-full p-5 rounded-2xl border border-slate-800 space-y-4 shadow-2xl">
+        <div class="flex justify-between items-center">
+          <h3 id="modalTitle" class="text-base font-bold text-white">Add Expense</h3>
+          <button onclick="closeModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+        </div>
+        
+        <input type="hidden" id="editRowId">
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Amount (₹)</label>
+          <input type="number" step="0.01" id="inputAmount" placeholder="0.00" 
+            class="w-full px-3.5 py-3 rounded-xl bg-black border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Category</label>
+            <select id="inputCategory" class="w-full px-3 py-3 rounded-xl bg-black border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500">
+              <option value="Food & Dining">Food & Dining</option>
+              <option value="Groceries">Groceries</option>
+              <option value="Transport">Transport</option>
+              <option value="Bills & Utilities">Bills & Utilities</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Others">Others</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Date</label>
+            <input type="date" id="inputDate" 
+              class="w-full px-3.5 py-3 rounded-xl bg-black border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Note / Description</label>
+          <input type="text" id="inputNote" placeholder="e.g., Morning coffee, Uber ride" 
+            class="w-full px-3.5 py-3 rounded-xl bg-black border border-slate-800 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div class="flex justify-end gap-2 pt-2">
+          <button onclick="closeModal()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition">Cancel</button>
+          <button onclick="saveExpense()" id="saveBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold transition">Save Expense</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyvHGdbza_9PukVERrdljK9svMyoXCAEmm31-_y6ke3FPC63cLiOrAZl6ktpQuRQU54/exec";
+    let allExpenses = [];
+
+    window.onload = () => {
+      document.getElementById('inputDate').valueAsDate = new Date();
+      fetchAllExpenses();
+    };
+
+    function openModal(rowId = null) {
+      if (rowId) {
+        const item = allExpenses.find(t => t.rowId === rowId);
+        if (!item) return;
+        document.getElementById('modalTitle').innerText = 'Edit Expense';
+        document.getElementById('editRowId').value = item.rowId;
+        document.getElementById('inputAmount').value = item.amount;
+        document.getElementById('inputCategory').value = item.category;
+        document.getElementById('inputDate').value = item.date;
+        document.getElementById('inputNote').value = item.note;
+        document.getElementById('saveBtn').innerText = 'Update Expense';
+      } else {
+        document.getElementById('modalTitle').innerText = 'Add Expense';
+        document.getElementById('editRowId').value = '';
+        document.getElementById('inputAmount').value = '';
+        document.getElementById('inputNote').value = '';
+        document.getElementById('inputDate').valueAsDate = new Date();
+        document.getElementById('saveBtn').innerText = 'Save Expense';
+      }
+      document.getElementById('expenseModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('expenseModal').classList.add('hidden');
+    }
+
+    async function fetchAllExpenses() {
+      const statusEl = document.getElementById('syncStatus');
+      statusEl.innerText = 'Syncing...';
+
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        allExpenses = data.expenses || [];
+        renderExpenses();
+        statusEl.innerText = 'Synced with Sheets';
+      } catch (err) {
+        statusEl.innerText = 'Sync failed (Offline)';
+      }
+    }
+
+    async function saveExpense() {
+      const editRowId = document.getElementById('editRowId').value;
+      const amount = parseFloat(document.getElementById('inputAmount').value);
+      const category = document.getElementById('inputCategory').value;
+      const date = document.getElementById('inputDate').value;
+      const note = document.getElementById('inputNote').value.trim();
+
+      if (!amount || amount <= 0 || !date) {
+        alert('Please enter a valid amount and date.');
+        return;
+      }
+
+      const saveBtn = document.getElementById('saveBtn');
+      saveBtn.disabled = true;
+      saveBtn.innerText = 'Saving...';
+
+      const payload = {
+        action: editRowId ? 'edit' : 'add',
+        rowId: editRowId ? Number(editRowId) : undefined,
+        amount,
+        category,
+        date,
+        note
+      };
+
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        closeModal();
+        await fetchAllExpenses();
+      } catch (err) {
+        alert('Failed to save to Google Sheets.');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    }
+
+    function renderExpenses() {
+      const selectedCategory = document.getElementById('filterCategory').value;
+      let txs = allExpenses;
+
+      if (selectedCategory !== 'ALL') {
+        txs = txs.filter(t => t.category === selectedCategory);
+      }
+
+      const total = txs.reduce((sum, t) => sum + Number(t.amount), 0);
+      document.getElementById('totalExpenseAmount').innerText = `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      const listEl = document.getElementById('txList');
+      listEl.innerHTML = '';
+
+      if (txs.length === 0) {
+        listEl.innerHTML = `<div class="p-8 card-dark rounded-xl text-center text-slate-500 text-sm">No expenses found.</div>`;
+        return;
+      }
+
+      txs.forEach(t => {
+        const item = document.createElement('div');
+        item.className = "card-dark p-3.5 rounded-xl flex justify-between items-center border border-slate-800/60";
+        item.innerHTML = `
+          <div class="min-w-0 pr-2 cursor-pointer flex-1" onclick="openModal(${t.rowId})">
+            <h4 class="text-sm font-medium text-white truncate">${t.note || t.category}</h4>
+            <p class="text-xs text-slate-400 mt-0.5">${t.category} • ${t.date}</p>
+          </div>
+          <div class="flex items-center gap-3 shrink-0">
+            <span class="text-sm font-bold text-rose-500" onclick="openModal(${t.rowId})">-₹${Number(t.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <button onclick="deleteExpense(${t.rowId})" class="text-slate-500 hover:text-rose-400 text-xs p-1">✕</button>
+          </div>
+        `;
+        listEl.appendChild(item);
+      });
+    }
+
+    async function deleteExpense(rowId) {
+      if (!confirm('Are you sure you want to delete this row from Google Sheets?')) return;
+      try {
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'delete', rowId: rowId })
+        });
+        await fetchAllExpenses();
+      } catch (err) {
+        alert('Failed to delete transaction.');
+      }
+    }
+  </script>
+</body>
+</html>

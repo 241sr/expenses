@@ -90,9 +90,9 @@
         <p class="text-xs text-slate-400">Scroll horizontally to view past days.</p>
         
         <!-- Scrollable Histogram Container with SVG Trend Line overlay -->
-        <div class="w-full overflow-x-auto pb-3 pt-2 relative">
-          <div id="histogramContainer" class="flex items-end gap-3 min-w-max h-48 px-2 border-b border-slate-800 relative">
-            <!-- SVG Overlay for Trend Line -->
+        <div class="w-full overflow-x-auto pb-3 pt-6 relative">
+          <div id="histogramContainer" class="flex items-end gap-3 min-w-max h-52 px-2 border-b border-slate-800 relative">
+            <!-- SVG Overlay for Trend Line & Labels -->
             <svg id="trendSvg" class="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible"></svg>
             <!-- Bars injected dynamically -->
           </div>
@@ -227,15 +227,13 @@
         return;
       }
 
-      // Remove no-data warning if it exists
       const noDataEl = container.querySelector('.no-data');
       if (noDataEl) noDataEl.remove();
 
-      // Compute max height limit for chart scaling (~120px bar height max)
       const maxAmount = Math.max(...Object.values(totalsByDate), 1);
       const chartHeight = 120;
+      const topPadding = 28; // Space for the average value label
 
-      // Calculate cumulative averages
       let cumulativeSum = 0;
       const points = [];
 
@@ -257,37 +255,30 @@
         `;
         container.appendChild(barCol);
 
-        // Store data for SVG coordinate calculation
-        // Each bar col width is 56px (w-14) + gap 12px (gap-3) = 68px center offset
-        const xCenter = (index * 68) + 28 + 8; // padding offset + half column
-        // Y coordinate mapping (inverted since SVG 0 is top)
-        // Max value for scaling the line should ideally fit maxAmount as well
-        const yCoord = chartHeight - Math.min(Math.max((cumulativeAvg / maxAmount) * chartHeight, 0), chartHeight) + 20; // 20px padding for top label space
+        const xCenter = (index * 68) + 28 + 8;
+        const yCoord = chartHeight - Math.min(Math.max((cumulativeAvg / maxAmount) * chartHeight, 0), chartHeight) + topPadding;
 
         points.push({ x: xCenter, y: yCoord, avg: cumulativeAvg });
       });
 
-      // Set SVG dimensions based on total content width
       const totalWidth = sortedDates.length * 68 + 16;
       svg.setAttribute('width', totalWidth);
-      svg.setAttribute('height', chartHeight + 40);
+      svg.setAttribute('height', chartHeight + topPadding + 16);
 
       if (points.length > 0) {
-        // Build polyline points string
         const ptsString = points.map(p => `${p.x},${p.y}`).join(' ');
 
-        // Draw trend line
         const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
         polyline.setAttribute('points', ptsString);
         polyline.setAttribute('fill', 'none');
-        polyline.setAttribute('stroke', '#38bdf8'); // sky-400 blue trend line
+        polyline.setAttribute('stroke', '#38bdf8');
         polyline.setAttribute('stroke-width', '2.5');
         polyline.setAttribute('stroke-linecap', 'round');
         polyline.setAttribute('stroke-linejoin', 'round');
         svg.appendChild(polyline);
 
-        // Draw data points with tooltips or indicators
         points.forEach(p => {
+          // Circle point marker
           const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
           circle.setAttribute('cx', p.x);
           circle.setAttribute('cy', p.y);
@@ -296,6 +287,17 @@
           circle.setAttribute('stroke', '#ffffff');
           circle.setAttribute('stroke-width', '1.5');
           svg.appendChild(circle);
+
+          // Value label above each point
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.setAttribute('x', p.x);
+          text.setAttribute('y', p.y - 8);
+          text.setAttribute('fill', '#38bdf8');
+          text.setAttribute('font-size', '9.5');
+          text.setAttribute('font-weight', '600');
+          text.setAttribute('text-anchor', 'middle');
+          text.textContent = `₹${Math.round(p.avg)}`;
+          svg.appendChild(text);
         });
       }
     }

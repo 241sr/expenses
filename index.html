@@ -11,7 +11,7 @@
     body { background-color: #000000; color: #ffffff; font-family: system-ui, -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
     .card-dark { background-color: #161821; }
     .card-darker { background-color: #1c1f2b; }
-    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: #000000; }
     ::-webkit-scrollbar-thumb { background: #2d3142; border-radius: 2px; }
   </style>
@@ -26,7 +26,10 @@
         <h1 class="text-xl font-semibold text-white tracking-wide">Expense Tracker</h1>
         <p id="syncStatus" class="text-[11px] text-slate-400">Syncing with Google Sheets...</p>
       </div>
-      <button onclick="fetchAllExpenses()" class="px-3 py-1.5 rounded-xl card-dark border border-slate-800 text-xs text-slate-300 hover:text-white transition">🔄 Sync</button>
+      <div class="flex items-center gap-2">
+        <button onclick="openChartModal()" class="px-3 py-1.5 rounded-xl card-dark border border-slate-800 text-xs text-slate-300 hover:text-white transition">📊 Chart</button>
+        <button onclick="fetchAllExpenses()" class="px-3 py-1.5 rounded-xl card-dark border border-slate-800 text-xs text-slate-300 hover:text-white transition">🔄 Sync</button>
+      </div>
     </div>
 
     <!-- Summary Card -->
@@ -64,6 +67,28 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 4v16m8-8H4"/>
         </svg>
       </button>
+    </div>
+
+    <!-- CHART MODAL -->
+    <div id="chartModal" class="fixed inset-0 max-w-md mx-auto bg-black/80 backdrop-blur-sm z-40 hidden flex items-center justify-center p-4">
+      <div class="card-dark w-full p-5 rounded-2xl border border-slate-800 space-y-4 shadow-2xl">
+        <div class="flex justify-between items-center">
+          <h3 class="text-base font-bold text-white">Daily Spending (Histogram)</h3>
+          <button onclick="closeChartModal()" class="text-slate-400 hover:text-white text-xl">&times;</button>
+        </div>
+        <p class="text-xs text-slate-400">Scroll horizontally to view past days.</p>
+        
+        <!-- Scrollable Histogram Container -->
+        <div class="w-full overflow-x-auto pb-3 pt-2">
+          <div id="histogramContainer" class="flex items-end gap-3 min-w-max h-48 px-2 border-b border-slate-800">
+            <!-- Bars injected dynamically -->
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-1">
+          <button onclick="closeChartModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition">Close</button>
+        </div>
+      </div>
     </div>
 
     <!-- ADD / EDIT EXPENSE MODAL -->
@@ -149,6 +174,57 @@
 
     function closeModal() {
       document.getElementById('expenseModal').classList.add('hidden');
+    }
+
+    function openChartModal() {
+      renderHistogram();
+      document.getElementById('chartModal').classList.remove('hidden');
+    }
+
+    function closeChartModal() {
+      document.getElementById('chartModal').classList.add('hidden');
+    }
+
+    function renderHistogram() {
+      const container = document.getElementById('histogramContainer');
+      container.innerHTML = '';
+
+      // Aggregate spending by date
+      const totalsByDate = {};
+      allExpenses.forEach(t => {
+        if (!totalsByDate[t.date]) {
+          totalsByDate[t.date] = 0;
+        }
+        totalsByDate[t.date] += Number(t.amount);
+      });
+
+      // Get unique sorted dates (past to present, or latest first depending on preference; let's do chronological)
+      const sortedDates = Object.keys(totalsByDate).sort((a, b) => new Date(a) - new Date(b));
+
+      if (sortedDates.length === 0) {
+        container.innerHTML = `<div class="w-full text-center text-xs text-slate-500 py-16">No expense data available for chart.</div>`;
+        return;
+      }
+
+      const maxAmount = Math.max(...Object.values(totalsByDate), 1);
+
+      sortedDates.forEach(dateStr => {
+        const amt = totalsByDate[dateStr];
+        const heightPct = Math.max(Math.round((amt / maxAmount) * 120), 12); // proportional height up to 120px
+
+        // Format label nicely e.g., "Nov 8"
+        const dObj = new Date(dateStr);
+        const label = isNaN(dObj) ? dateStr : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+        const barCol = document.createElement('div');
+        barCol.className = "flex flex-col items-center justify-end h-full w-14 shrink-0 group";
+        barCol.innerHTML = `
+          <span class="text-[10px] text-rose-400 font-semibold mb-1 opacity-80 group-hover:opacity-100 truncate w-full text-center">₹${Math.round(amt)}</span>
+          <div style="height: ${heightPct}px;" class="w-8 bg-rose-500/80 hover:bg-rose-500 rounded-t-lg transition-all"></div>
+          <span class="text-[10px] text-slate-400 mt-2 truncate w-full text-center">${label}</span>
+        `;
+        container.appendChild(barCol);
+      });
     }
 
     async function fetchAllExpenses() {
